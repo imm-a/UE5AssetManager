@@ -60,11 +60,11 @@ class AssetDistrib:
         return assetname, assetclass
 
     def place_asset(self,asset):
-        #Might need to be modified depending on needs
         #Current: Static Mesh, Materials, Textures, Skeletons, Physics Assets, Animations
         assetname, assetclass = self.find_assettags(asset)
         dest_directory = "/Game/"+self.destDir
         print(assetclass)
+        #Use the classname to figure out which folder it goes into
         if (assetclass.find("Mesh")!=-1):
             self.obj.rename_asset(asset,dest_directory+"/Meshes/"+assetname)
             print("success")
@@ -89,7 +89,7 @@ class AssetImport:
     ''' Python class to autoimport assets and assert naming conventions '''
 
     def __init__(self, import_folder_unreal, import_folder_path,import_options_json): 
-        self.import_folder_unreal = import_folder_unreal #which folder in unreal are we importing into? Ex: Assets or Amka
+        self.import_folder_unreal = import_folder_unreal #which folder in unreal are we importing into? Ex: Assets or Character
         self.import_folder_path = import_folder_path #Which folder are we importing from outside Unreal? 
         self.import_options_json = import_options_json #Json file for options
         self.loadJson()
@@ -106,15 +106,15 @@ class AssetImport:
         f.close()
 
     def getOptions(self):
+        '''Get options for each asset type'''
         self.mesh_options = self.jsondata["mesh_options"]
         self.skeletal_options = self.jsondata["skeletal_options"]
         self.anim_options = self.jsondata["anim_options"]
 
-    def SMImportOptions(self,type, opt): #Defaults to a Static Mesh
+    def SMImportOptions(self,type, opt): 
         #Setting Asset Import Options
-        #Need to make this modifiable, with a variable or a list
         fbxoptions = unreal.FbxImportUI()
-        if type == 'SM' or type == 'SKM' or type == 'Anim':
+        if type == 'SM' or type == 'SKM' or type == 'Anim': #Common settings for all assets
             fbxoptions.set_editor_property('import_mesh',opt['import_mesh'])
             fbxoptions.set_editor_property('import_materials',opt['import_materials'])
             fbxoptions.set_editor_property('import_textures', opt['import_textures'])
@@ -137,8 +137,8 @@ class AssetImport:
             fbxoptions.static_mesh_import_data.set_editor_property('auto_generate_collision', opt['auto_generate_collision'])
  
         else:
-            #Need a proxy skeleton for all animations
-            skpath = self.import_folder_unreal+opt['skeleton_path']
+            #Need a placeholder skeleton for all animations
+            skpath = self.import_folder_unreal+opt['skeleton_path'] 
             fbxoptions.skeleton = unreal.load_asset(skpath)
             fbxoptions.anim_sequence_import_data.set_editor_property('import_rotation',opt['import_rotation'])
             fbxoptions.anim_sequence_import_data.set_editor_property('import_translation',opt['import_translation'])
@@ -166,6 +166,7 @@ class AssetImport:
 
     def assertName(self,asset_type,filename):
         ''' Unreal Naming Conventions '''
+        '''Needs improvements'''
         if filename.rfind('fbx') != -1:
             filename = filename[:filename.rfind('fbx')-1]
 
@@ -207,13 +208,15 @@ class AssetImport:
             return False
 
     def traverse_directory(self):
-        #going through the asset import folder to grab assets
+        #going through the asset folder outside Unreal to grab and import assets
         path = self.import_folder_path
         list_of_files = os.listdir(path)
         for filen in list_of_files:
             filename = path+"/"+filen
-  
-            if filen.startswith('SM'): #This will change. Can use folder name to deduce this too.
+
+        #To deduce what kind of file it is and how it should be imported, can use naming convention or the foldername
+        #Depending on what kind of pipeline we are setting up  
+            if filen.startswith('SM'):
                 mtype = 'SM'
                 opt = {
                     'import_mesh': self.strTobool(self.mesh_options['import_mesh']),
@@ -282,12 +285,11 @@ class AssetImport:
                 self.assetImpTasks(filename,self.import_folder_unreal, new_name,fbxoptions)
 
     def importAsset(self):
-        print(self.importtasks)
         unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(self.importtasks)
 
 
 class MICreation:
-
+    '''Creates material instances and assigns them to the relevant static meshes based on name'''
     def __init__(self,materials_folder,base_material,texture_folder,assets_path):
         self.materials_folder = materials_folder
         self.base_material = base_material
@@ -299,6 +301,7 @@ class MICreation:
         self.createAssetMaterial()
 
     def createMaterialInstance(self, mi_full_path,mi_name):
+        '''Creates material instance from a parent material'''
         at = unreal.AssetToolsHelpers.get_asset_tools()
         if self.eal.does_asset_exist(mi_full_path):
             minst = self.eal.find_asset_data(mi_full_path).get_asset()
@@ -309,12 +312,9 @@ class MICreation:
         return minst
     
     def setMIvalues(self,minst,asset_name):
-        #self.mel.set_material_instance_scalar_parameter_value( minst, "Desaturation", opt[0])
-
-        #Depends on naming conventions
+        #Depends on naming conventions and the master material
         self.setMItexture(minst,"AO Texture", self.texture_folder+"/" + "T_" + asset_name + "_OcclusionRoughnessMetallic")
         self.setMItexture(minst,"BaseColor", self.texture_folder+"/" + "T_" + asset_name + "_BaseColor")  #Parameter name should be taken as input. "Would depend on Master Material
-        #self.setMItexture(minst, "Masks Map", self.texture_folder + "T_" + asset_name + "_masks") #Check texture parameter value for material instance
         self.setMItexture(minst, "Normal", self.texture_folder + "T_" + asset_name + "_Normal")
 
     def setMItexture(self,minst, param_name, texture_path):
@@ -333,7 +333,7 @@ class MICreation:
             assetname = assetname.rsplit('.')[0]
             assetname = assetname[2:]
             assetclass = (assetdata.get_class()).get_name()
-            if assetclass != 'StaticMesh':
+            if assetclass != 'StaticMesh': #We only apply these materials to static meshes
                 continue
             mi_name = "MI_"+assetname
             mi_full_path = self.materials_folder+'/'+mi_name
@@ -342,7 +342,7 @@ class MICreation:
             assetdata.get_asset().set_material(0, minst)
 
 class MainWindow(QMainWindow):
-
+    '''GUI for this tool'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowTitle('Asset Management Tool')
