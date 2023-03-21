@@ -1,5 +1,4 @@
 import sys
-#sys.path.append('C:/Users/aimmaneni/AppData/Local/Packages/PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0/LocalCache/local-packages/Python39/site-packages')
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 import unreal
