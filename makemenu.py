@@ -8,6 +8,7 @@ if path not in sys.path:
 def main():
     print("Creating Menus!")
     menus = unreal.ToolMenus.get()
+    ''' Looking for the  main menu '''
     main_menu = menus.find_menu("LevelEditor.MainMenu")
     if not main_menu:
         print("Failed to find the 'Main' menu. Something is wrong in the force!")
@@ -18,7 +19,7 @@ def main():
                                 insert_position=unreal.ToolMenuInsert("", unreal.ToolMenuInsertType.FIRST)
     )
     entry.set_label("AMTool!")
-    entry.set_string_command(unreal.ToolMenuStringCommandType.PYTHON,'', string="import PMToolNewMI.py;")
+    entry.set_string_command(unreal.ToolMenuStringCommandType.PYTHON,'', string="import PMToolNewMI.py;") #This imports the main Asset Management Script
     script_menu = main_menu.add_sub_menu(main_menu.get_name(), "PythonTools", "PyTool", "PyTools")
 
     script_menu.add_menu_entry("Scripts",entry)

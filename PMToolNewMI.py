@@ -1,30 +1,50 @@
+
 import sys
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import * #Change this
 from PyQt5.QtGui import *
 import unreal
 import struct
 import json
 import os
 
+
+''' 
+    Setting global variable, path to JSON
+    Replace this with the absolute path to your JSON file
+ '''
+
+filename = 'C:/Users/aimmaneni/Desktop/data.json'
+
+try:
+    f = open(filename)
+    folder_struct = json.load(f)
+    f.close()
+
+except IOError as message:
+    raise IOError(f'File could not be opened {message}')  #Error handling
+
 class FolderStruc:
     ''' Python class to create folders in unreal '''
 
+
     def __init__(self, filename,main_folder):
+        '''
+        Args:
+            filename (str): The first parameter.
+            main_folder (str): The name of the outermost folder
+
+        Returns:
+            bool: The return value. True for success, False otherwise.
+
+        '''
         self.filename = filename
         self.main_folder = main_folder
         self.obj = unreal.EditorAssetLibrary()
-        self.loadJson()
         self.get_folder_struct()
         self.create_directories()
-    
-    def loadJson(self):
-        f = open(self.filename)
-        self.folder_struct = json.load(f)
-        f.close()
 
     def get_folder_struct(self):
-        self.directories = self.folder_struct["folder_names"].rsplit(",")
-
+        self.directories = folder_struct["folder_names"].rsplit(",")
 
     def create_directories(self):
         parent_directory = "/Game/"+self.main_folder
@@ -37,34 +57,54 @@ class FolderStruc:
 class AssetDistrib:
     '''Python class to distribute assets is folders'''
 
-    def __init__(self,sourceDir,destDir):
-        self.sourceDir = sourceDir
-        self.destDir = destDir
+    def __init__(self,source_dir,dest_dir):
+        '''
+        Args:
+            source_dir (str) : Source directory to distribute assets from
+            dest_dir (str) : Destination directory to distribute into
+            source_dir and dest_dir could be the same in certain instances
+        '''
+        self.source_dir = source_dir
+        self.dest_dir = dest_dir
+        self.assetType = {
+             'StaticMesh' : 'Meshes',
+             'SkeletalMesh' : 'Meshes',
+             'Texture2D': 'Textures',
+              'AnimSequence': 'Animations',
+              'Skeleton': 'Skeletons',
+              'PhysicsAsset': 'PhysicsAssets',
+              'Material': 'Materials'
+              }
         self.obj = unreal.EditorAssetLibrary()
         self.get_assets()
         self.distribute_assets()
 
     def get_assets(self):
         ''' Get list of assets in a directory '''
-        self.listOfAssets = self.obj.list_assets("/Game/"+self.sourceDir+"/")
+        self.listOfAssets = self.obj.list_assets("/Game/"+self.source_dir+"/")
 
     def distribute_assets(self):
         for asset in self.listOfAssets:
+            
             self.place_asset(asset)
             
 
-    def find_assettags(self,asset):
+    def find_assettags(self,asset): 
         assetdata = self.obj.find_asset_data(asset)
         assetname = (((assetdata.get_full_name()).rsplit("/"))[-1]) #Get Asset Name
         assetclass = (assetdata.get_class()).get_name() #Tells us if it belongs to class 'Static Mesh' or 'Material' for example
         return assetname, assetclass
 
     def place_asset(self,asset):
+        #Can be modified based on need
         #Current: Static Mesh, Materials, Textures, Skeletons, Physics Assets, Animations
         assetname, assetclass = self.find_assettags(asset)
-        dest_directory = "/Game/"+self.destDir
-        print(assetclass)
-        #Use the classname to figure out which folder it goes into
+        dest_directory = "/Game/"+self.dest_dir
+        if str(assetclass) in self.assetType.keys():
+            self.obj.rename_asset(asset,dest_directory+"/"+self.assetType[str(assetclass)]+"/"+assetname)        
+            print('Success')
+        '''
+        Old:
         if (assetclass.find("Mesh")!=-1):
             self.obj.rename_asset(asset,dest_directory+"/Meshes/"+assetname)
             print("success")
@@ -83,38 +123,38 @@ class AssetDistrib:
         elif assetclass.startswith("Anim"):
             self.obj.rename_asset(asset,dest_directory+"/Animations/"+assetname)
             print("success")
+        '''
 
 
 class AssetImport:
     ''' Python class to autoimport assets and assert naming conventions '''
 
-    def __init__(self, import_folder_unreal, import_folder_path,import_options_json): 
-        self.import_folder_unreal = import_folder_unreal #which folder in unreal are we importing into? Ex: Assets or Character
-        self.import_folder_path = import_folder_path #Which folder are we importing from outside Unreal? 
-        self.import_options_json = import_options_json #Json file for options
-        self.loadJson()
-        self.getOptions()
-        self.fbxoptions = unreal.FbxImportUI()
-        self.taskoptions = unreal.AssetImportTask()
-        self.importtasks = []
+    def __init__(self, import_folder_unreal, import_folder_path): 
+        '''
+        Args:
+            import_folder_unreal (str) : Folder inside Unreal to import into
+            import_folder_path (str) : Folder outside Unreal which contains all your assets
+        '''
+        self.import_folder_unreal = import_folder_unreal 
+        self.import_folder_path = import_folder_path 
+        self.get_options()
+        self.fbx_options = unreal.FbxImportUI()
+        self.task_options = unreal.AssetImportTask()
+        self.import_tasks = []
         self. traverse_directory()
-        self.importAsset()
+        self.import_asset()
  
-    def loadJson(self):
-        f = open(self.import_options_json)
-        self.jsondata = json.load(f)
-        f.close()
 
-    def getOptions(self):
-        '''Get options for each asset type'''
-        self.mesh_options = self.jsondata["mesh_options"]
-        self.skeletal_options = self.jsondata["skeletal_options"]
-        self.anim_options = self.jsondata["anim_options"]
+    def get_options(self):
+        self.mesh_options = folder_struct["mesh_options"]
+        self.skeletal_options = folder_struct["skeletal_options"]
+        self.anim_options = folder_struct["anim_options"]
 
-    def SMImportOptions(self,type, opt): 
+    def get_import_options(self,type, opt): #Defaults to a Static Mesh
         #Setting Asset Import Options
+        #Need to make this modifiable, with a variable or a list
         fbxoptions = unreal.FbxImportUI()
-        if type == 'SM' or type == 'SKM' or type == 'Anim': #Common settings for all assets
+        if type == 'SM' or type == 'SKM' or type == 'Anim':
             fbxoptions.set_editor_property('import_mesh',opt['import_mesh'])
             fbxoptions.set_editor_property('import_materials',opt['import_materials'])
             fbxoptions.set_editor_property('import_textures', opt['import_textures'])
@@ -137,8 +177,8 @@ class AssetImport:
             fbxoptions.static_mesh_import_data.set_editor_property('auto_generate_collision', opt['auto_generate_collision'])
  
         else:
-            #Need a placeholder skeleton for all animations
-            skpath = self.import_folder_unreal+opt['skeleton_path'] 
+            #Need a proxy skeleton for all animations
+            skpath = self.import_folder_unreal+opt['skeleton_path']
             fbxoptions.skeleton = unreal.load_asset(skpath)
             fbxoptions.anim_sequence_import_data.set_editor_property('import_rotation',opt['import_rotation'])
             fbxoptions.anim_sequence_import_data.set_editor_property('import_translation',opt['import_translation'])
@@ -162,11 +202,10 @@ class AssetImport:
         taskoptions.set_editor_property('replace_existing', True)
         taskoptions.set_editor_property('save', False)
         taskoptions.set_editor_property('options', fbxoptions)
-        self.importtasks.append(taskoptions)
+        self.import_tasks.append(taskoptions)
 
     def assertName(self,asset_type,filename):
         ''' Unreal Naming Conventions '''
-        '''Needs improvements'''
         if filename.rfind('fbx') != -1:
             filename = filename[:filename.rfind('fbx')-1]
 
@@ -200,7 +239,7 @@ class AssetImport:
         return name
 
 
-    def strTobool(self,str):
+    def str_to_bool(self,str):
         ''' Convert string to boolean '''
         if str == "True":
             return True
@@ -208,51 +247,53 @@ class AssetImport:
             return False
 
     def traverse_directory(self):
-        #going through the asset folder outside Unreal to grab and import assets
+        ''' Going through the asset import folder to grab assets '''
         path = self.import_folder_path
         list_of_files = os.listdir(path)
+        dictAssetType = {
+                         'SM': 'SM',
+                          'SKM': 'SKM',
+                          'An': 'Anim'
+                            }
         for filen in list_of_files:
-            filename = path+"/"+filen
-
-        #To deduce what kind of file it is and how it should be imported, can use naming convention or the foldername
-        #Depending on what kind of pipeline we are setting up  
-            if filen.startswith('SM'):
-                mtype = 'SM'
+            filename = path+"/"+filen  
+            if filen.startswith('SM'): #This will change. Can use folder name to deduce this too.
+                mtype = dictAssetType[filen[0:2]]
                 opt = {
-                    'import_mesh': self.strTobool(self.mesh_options['import_mesh']),
-                    'import_materials': self.strTobool(self.mesh_options['import_materials']),
-                    'import_textures': self.strTobool(self.mesh_options['import_textures']),
-                    'import_as_skeletal': self.strTobool(self.mesh_options['import_as_skeletal']),
-                    'import_animations': self.strTobool(self.mesh_options['import_animations']),
+                    'import_mesh': self.str_to_bool(self.mesh_options['import_mesh']),
+                    'import_materials': self.str_to_bool(self.mesh_options['import_materials']),
+                    'import_textures': self.str_to_bool(self.mesh_options['import_textures']),
+                    'import_as_skeletal': self.str_to_bool(self.mesh_options['import_as_skeletal']),
+                    'import_animations': self.str_to_bool(self.mesh_options['import_animations']),
                     'import_translation': unreal.Vector(0.0, 0.0, 0.0) ,
                     'import_rotation': unreal.Rotator(0.0, 0.0, 0.0) ,
                     'import_uniform_scale': 1.0 ,
-                    'combine_meshes': self.strTobool(self.mesh_options['combine_meshes']),
-                    'generate_lightmap_u_vs': self.strTobool(self.mesh_options['generate_lightmap_u_vs']),
-                    'auto_generate_collision':self.strTobool(self.mesh_options['auto_generate_collision']),
+                    'combine_meshes': self.str_to_bool(self.mesh_options['combine_meshes']),
+                    'generate_lightmap_u_vs': self.str_to_bool(self.mesh_options['generate_lightmap_u_vs']),
+                    'auto_generate_collision':self.str_to_bool(self.mesh_options['auto_generate_collision']),
                     'skeleton_path': self.mesh_options['skeleton_path']
                     }
-                fbxoptions = self.SMImportOptions(mtype,opt)
+                fbxoptions = self.get_import_options(mtype,opt)
                 new_name = self.assertName(mtype,filen)
                 self.assetImpTasks(filename,self.import_folder_unreal, new_name,fbxoptions)
 
             elif filen.startswith('SKM'):
                 mtype = 'SKM'
                 opt = {
-                    'import_mesh': self.strTobool(self.skeletal_options['import_mesh']),
-                    'import_materials': self.strTobool(self.skeletal_options['import_materials']),
-                    'import_textures': self.strTobool(self.skeletal_options['import_textures']),
-                    'import_as_skeletal': self.strTobool(self.skeletal_options['import_as_skeletal']),
-                    'import_animations': self.strTobool(self.skeletal_options['import_animations']),
+                    'import_mesh': self.str_to_bool(self.skeletal_options['import_mesh']),
+                    'import_materials': self.str_to_bool(self.skeletal_options['import_materials']),
+                    'import_textures': self.str_to_bool(self.skeletal_options['import_textures']),
+                    'import_as_skeletal': self.str_to_bool(self.skeletal_options['import_as_skeletal']),
+                    'import_animations': self.str_to_bool(self.skeletal_options['import_animations']),
                     'import_translation': unreal.Vector(0.0, 0.0, 0.0) ,
                     'import_rotation': unreal.Rotator(0.0, 0.0, 0.0) ,
                     'import_uniform_scale': 1.0 ,
-                    'combine_meshes': self.strTobool(self.skeletal_options['combine_meshes']),
-                    'generate_lightmap_u_vs': self.strTobool(self.skeletal_options['generate_lightmap_u_vs']),
-                    'auto_generate_collision':self.strTobool(self.skeletal_options['auto_generate_collision']),
+                    'combine_meshes': self.str_to_bool(self.skeletal_options['combine_meshes']),
+                    'generate_lightmap_u_vs': self.str_to_bool(self.skeletal_options['generate_lightmap_u_vs']),
+                    'auto_generate_collision':self.str_to_bool(self.skeletal_options['auto_generate_collision']),
                     'skeleton_path': self.skeletal_options['skeleton_path']
                     }
-                fbxoptions = self.SMImportOptions(mtype,opt)
+                fbxoptions = self.get_import_options(mtype,opt)
                 new_name = self.assertName(mtype,filen)
                 self.assetImpTasks(filename,self.import_folder_unreal, new_name,fbxoptions)
 
@@ -260,20 +301,20 @@ class AssetImport:
             elif filen.startswith('Anim'):
                 mtype = 'Anim'
                 opt = {
-                    'import_mesh': self.strTobool(self.anim_options['import_mesh']),
-                    'import_materials': self.strTobool(self.anim_options['import_materials']),
-                    'import_textures': self.strTobool(self.anim_options['import_textures']),
-                    'import_as_skeletal': self.strTobool(self.anim_options['import_as_skeletal']),
-                    'import_animations': self.strTobool(self.anim_options['import_animations']),
+                    'import_mesh': self.str_to_bool(self.anim_options['import_mesh']),
+                    'import_materials': self.str_to_bool(self.anim_options['import_materials']),
+                    'import_textures': self.str_to_bool(self.anim_options['import_textures']),
+                    'import_as_skeletal': self.str_to_bool(self.anim_options['import_as_skeletal']),
+                    'import_animations': self.str_to_bool(self.anim_options['import_animations']),
                     'import_translation': unreal.Vector(0.0, 0.0, 0.0) ,
                     'import_rotation': unreal.Rotator(0.0, 0.0, 0.0) ,
                     'import_uniform_scale': 1.0 ,
-                    'combine_meshes': self.strTobool(self.anim_options['combine_meshes']),
-                    'generate_lightmap_u_vs': self.strTobool(self.anim_options['generate_lightmap_u_vs']),
-                    'auto_generate_collision':self.strTobool(self.anim_options['auto_generate_collision']),
+                    'combine_meshes': self.str_to_bool(self.anim_options['combine_meshes']),
+                    'generate_lightmap_u_vs': self.str_to_bool(self.anim_options['generate_lightmap_u_vs']),
+                    'auto_generate_collision':self.str_to_bool(self.anim_options['auto_generate_collision']),
                     'skeleton_path': self.anim_options['skeleton_path']
                     }
-                fbxoptions = self.SMImportOptions(mtype,opt)
+                fbxoptions = self.get_import_options(mtype,opt)
                 new_name = self.assertName(mtype,filen)
                 self.assetImpTasks(filename,self.import_folder_unreal, new_name,fbxoptions)
 
@@ -284,12 +325,13 @@ class AssetImport:
                 print(new_name)
                 self.assetImpTasks(filename,self.import_folder_unreal, new_name,fbxoptions)
 
-    def importAsset(self):
-        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(self.importtasks)
+    def import_asset(self):
+        print(self.import_tasks)
+        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(self.import_tasks)
 
 
-class MICreation:
-    '''Creates material instances and assigns them to the relevant static meshes based on name'''
+class MaterialInstanceCreator:
+
     def __init__(self,materials_folder,base_material,texture_folder,assets_path):
         self.materials_folder = materials_folder
         self.base_material = base_material
@@ -297,11 +339,9 @@ class MICreation:
         self.assets_path = assets_path
         self.eal = unreal.EditorAssetLibrary()
         self.mel = unreal.MaterialEditingLibrary()
-        print('init')
-        self.createAssetMaterial()
+        self.create_asset_material()
 
-    def createMaterialInstance(self, mi_full_path,mi_name):
-        '''Creates material instance from a parent material'''
+    def create_material_instance(self, mi_full_path,mi_name):
         at = unreal.AssetToolsHelpers.get_asset_tools()
         if self.eal.does_asset_exist(mi_full_path):
             minst = self.eal.find_asset_data(mi_full_path).get_asset()
@@ -311,20 +351,19 @@ class MICreation:
             self.mel.set_material_instance_parent(minst, self.eal.find_asset_data(self.base_material).get_asset())
         return minst
     
-    def setMIvalues(self,minst,asset_name):
-        #Depends on naming conventions and the master material
-        self.setMItexture(minst,"AO Texture", self.texture_folder+"/" + "T_" + asset_name + "_OcclusionRoughnessMetallic")
-        self.setMItexture(minst,"BaseColor", self.texture_folder+"/" + "T_" + asset_name + "_BaseColor")  #Parameter name should be taken as input. "Would depend on Master Material
-        self.setMItexture(minst, "Normal", self.texture_folder + "T_" + asset_name + "_Normal")
+    def set_material_instance_values(self,minst,asset_name):
+        self.set_material_instance_texture(minst,"AO Texture", self.texture_folder+"/" + "T_" + asset_name + "_OcclusionRoughnessMetallic")
+        self.set_material_instance_texture(minst,"BaseColor", self.texture_folder+"/" + "T_" + asset_name + "_BaseColor")  #Parameter name should be taken as input. Would depend on Master Material
+        self.set_material_instance_texture(minst, "Normal", self.texture_folder + "T_" + asset_name + "_Normal")
 
-    def setMItexture(self,minst, param_name, texture_path):
+    def set_material_instance_texture(self,minst, param_name, texture_path):
         if not self.eal.does_asset_exist(texture_path):
             unreal.log_warning("Can't find texture: " + texture_path)
             return False
         texture = self.eal.find_asset_data(texture_path).get_asset()
         return self.mel.set_material_instance_texture_parameter_value(minst, param_name, texture) 
 
-    def createAssetMaterial(self):
+    def create_asset_material(self):
         listOfAssets = self.eal.list_assets(self.assets_path)
         for asset in listOfAssets:
             print(asset)
@@ -333,16 +372,16 @@ class MICreation:
             assetname = assetname.rsplit('.')[0]
             assetname = assetname[2:]
             assetclass = (assetdata.get_class()).get_name()
-            if assetclass != 'StaticMesh': #We only apply these materials to static meshes
+            if assetclass != 'StaticMesh':
                 continue
             mi_name = "MI_"+assetname
             mi_full_path = self.materials_folder+'/'+mi_name
-            minst = self.createMaterialInstance(mi_full_path,mi_name)
-            self.setMIvalues(minst,assetname)
+            minst = self.create_material_instance(mi_full_path,mi_name)
+            self.set_material_instance_values(minst,assetname)
             assetdata.get_asset().set_material(0, minst)
 
 class MainWindow(QMainWindow):
-    '''GUI for this tool'''
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowTitle('Asset Management Tool')
@@ -354,71 +393,66 @@ class MainWindow(QMainWindow):
 
 
     def createWidgets(self):
-        fsW = QWidget()
-        layoutfsW = QHBoxLayout()
-        fsW.setLayout(layoutfsW)
+        fsw = QWidget()
+        layout_fsw = QHBoxLayout()
+        fsw.setLayout(layout_fsw)
         self.button_browse = QPushButton('Browse')
         self.textbox_fs = QLineEdit()
         self.textbox_fs.setPlaceholderText('Select folder to import from')      
         self.textbox_foldername = QLineEdit()
         self.textbox_foldername.setPlaceholderText('Enter main folder name (Ex: Assets or Assets/Amka). External folder has to be created first.')
         self.layout.addWidget(self.textbox_foldername)
-        layoutfsW.addWidget(self.textbox_fs)
-        layoutfsW.addWidget(self.button_browse)
-        self.button_browse.clicked.connect(self.fileDialog)
+        layout_fsw.addWidget(self.textbox_fs)
+        layout_fsw.addWidget(self.button_browse)
+        self.button_browse.clicked.connect(self.file_dialog)
 
 
 
         self.button_makefs = QPushButton('Create Folders')
         self.layout.addWidget(self.button_makefs)
-        self.button_makefs.clicked.connect(self.createfs)
+        self.button_makefs.clicked.connect(self.create_folder_struct)
  
-        self.layout.addWidget(fsW)
+        self.layout.addWidget(fsw)
 
         self.textbox_whereimport = QLineEdit()
         self.textbox_whereimport.setPlaceholderText('Enter Unreal folder to import into and distribute. (Ex: Assets or Characters/Amka)')
         self.layout.addWidget(self.textbox_whereimport)
 
-        self.button_importassets = QPushButton('Import Assets') #Also distributes assets?
+        self.button_importassets = QPushButton('Import Assets') 
         self.layout.addWidget(self.button_importassets)
-        self.button_importassets.clicked.connect(self.importassets)
+        self.button_importassets.clicked.connect(self.import_assets)
 
-        self.button_distrib = QPushButton('Distribute Assets')
-        self.layout.addWidget(self.button_distrib)
-        self.button_distrib.clicked.connect(self.distribassets)
 
         self.button_createMI = QPushButton('Create Material Instances')
         self.layout.addWidget(self.button_createMI)
-        self.button_createMI.clicked.connect(self.createMI)
+        self.button_createMI.clicked.connect(self.create_material_instance)
 
-    def createfs(self):
+    def create_folder_struct(self):
         if self.textbox_foldername.text()!= '':
             mainfname = self.textbox_foldername.text()
             fs = FolderStruc('C:/Users/aimmaneni/Desktop/data.json',mainfname)
 
-    def distribassets(self):
-        if self.textbox_whereimport.text() != '':
-            disdir = self.textbox_whereimport.text()
-            adobj = AssetDistrib(disdir,disdir)
 
-    def importassets(self):        
+    def import_assets(self):        
         if (self.textbox_fs.text() != '' and self.textbox_whereimport.text() != ''):
             folder_path = self.textbox_fs.text()
             unreal_folder = "/Game/"+self.textbox_whereimport.text()+"/"
-            aiobj = AssetImport(unreal_folder,folder_path,'C:/Users/aimmaneni/Desktop/data.json')
+            aiobj = AssetImport(unreal_folder,folder_path)
+            disdir = self.textbox_whereimport.text()
+            adobj = AssetDistrib(disdir,disdir)
             
         else:
-            print('yeehaw')
+            print('Please insert import path')
 
-    def fileDialog(self):
+    def file_dialog(self):
         self.folder = str(QFileDialog.getExistingDirectory())
         self.textbox_fs.setText(self.folder)
     
-    def createMI(self):
+    def create_material_instance(self):
         materialsdir = "/Game/"+self.textbox_whereimport.text()+"/Materials"
         texdir = "/Game/"+self.textbox_whereimport.text()+"/Textures"
         meshdir = "/Game/"+self.textbox_whereimport.text()+"/Meshes"
-        miobj = MICreation(materialsdir,'/Game/Material/M_Master.M_Master',texdir,meshdir)
+        miobj = MaterialInstanceCreator(materialsdir,'/Game/Material/M_Master.M_Master',texdir,meshdir)
 
 app = QApplication(sys.argv)
 
