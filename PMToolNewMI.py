@@ -13,7 +13,7 @@ import os
     Replace this with the absolute path to your JSON file
  '''
 
-filename = 'C:/Users/aimmaneni/Desktop/data.json'
+filename = 'data.json'
 
 try:
     f = open(filename)

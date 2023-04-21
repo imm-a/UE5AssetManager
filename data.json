@@ -1,0 +1,47 @@
+{
+  "folder_names": "Meshes,Materials,Textures,Skeletons,PhysicsAssets,Animations",
+  "mesh_options": {
+    "import_mesh": "True",
+    "import_materials": "False",
+    "import_textures": "True",
+    "import_as_skeletal": "False",
+    "import_animations": "False",
+    "import_translation": "0.0",
+    "import_rotation": "0.0",
+    "import_uniform_scale": "1.0",
+    "combine_meshes": "True",
+    "generate_lightmap_u_vs": "True",
+    "auto_generate_collision": "True",
+    "skeleton_path": "Skeletons/SK_Kachujin_G_Rosales_Skeleton.SK_Kachujin_G_Rosales_Skeleton"
+  },
+  "skeletal_options": {
+    "import_mesh": "True",
+    "import_materials": "True",
+    "import_textures": "True",
+    "import_as_skeletal": "True",
+    "import_animations": "False",
+    "import_translation": "0.0",
+    "import_rotation": "0.0",
+    "import_uniform_scale": "1.0",
+    "combine_meshes": "True",
+    "generate_lightmap_u_vs": "True",
+    "auto_generate_collision": "True",
+    "skeleton_path": "Skeletons/SK_Kachujin_G_Rosales_Skeleton.SK_Kachujin_G_Rosales_Skeleton"
+  },
+
+  "anim_options": {
+    "import_mesh": "False",
+    "import_materials": "False",
+    "import_textures": "False",
+    "import_as_skeletal": "False",
+    "import_animations": "True",
+    "import_translation": "0.0",
+    "import_rotation": "0.0",
+    "import_uniform_scale": "1.0",
+    "combine_meshes": "True",
+    "generate_lightmap_u_vs": "True",
+    "auto_generate_collision": "True",
+    "skeleton_path": "Skeletons/SK_Kachujin_G_Rosales_Skeleton.SK_Kachujin_G_Rosales_Skeleton"
+  }
+
+}
